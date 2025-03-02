@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: laravel_app
+        restart: unless-stopped
+        working_dir: /var/www
+        volumes:
+            - .:/var/www
+        environment:
+            - APP_ENV=local
+            - APP_DEBUG=true
+            - DB_HOST=db
+            - REDIS_HOST=redis
+        depends_on:
+            - db
+            - redis
+
+    nginx:
+        image: nginx:alpine
+        container_name: laravel_nginx
+        restart: unless-stopped
+        ports:
+            - "80:80"
+        volumes:
+            - .:/var/www
+            - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+        depends_on:
+            - app
+
+    db:
+        image: mysql:8
+        container_name: laravel_db
+        restart: unless-stopped
+        environment:
+            MYSQL_ROOT_PASSWORD: root
+            MYSQL_DATABASE: laravel
+            MYSQL_USER: laravel
+            MYSQL_PASSWORD: secret
+        ports:
+            - "3306:3306"
+        volumes:
+            - db_data:/var/lib/mysql
+
+    redis:
+        image: redis:alpine
+        container_name: laravel_redis
+        restart: unless-stopped
+        ports:
+            - "6379:6379"
+
+    queue:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: laravel_queue
+        restart: unless-stopped
+        working_dir: /var/www
+        command: php artisan queue:work
+        depends_on:
+            - app
+            - redis
+        volumes:
+            - .:/var/www
+
+    scheduler:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: laravel_scheduler
+        restart: unless-stopped
+        working_dir: /var/www
+        command: php artisan schedule:work
+        depends_on:
+            - app
+        volumes:
+            - .:/var/www
+
+volumes:
+    db_data:
